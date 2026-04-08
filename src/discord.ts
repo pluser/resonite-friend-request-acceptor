@@ -34,7 +34,7 @@ export type FriendRequestAction = (
  * Callback to fetch contact data from the Resonite API.
  */
 export type SlashCommandHandler = {
-  getContacts: () => Promise<ResoniteContact[]>;
+  getContacts: () => Promise<ResoniteContact[] | null>;
   acceptContact: (contact: ResoniteContact) => Promise<boolean>;
 };
 
@@ -209,6 +209,12 @@ export class DiscordBot {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const contacts = await this.slashHandler!.getContacts();
+    if (contacts === null) {
+      await interaction.editReply({
+        content: "コンタクトリストの取得に失敗しました。しばらくしてから再試行してください。",
+      });
+      return;
+    }
     const friends = contacts.filter((c) => c.friendStatus === "Accepted");
 
     if (friends.length === 0) {
@@ -252,6 +258,12 @@ export class DiscordBot {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const contacts = await this.slashHandler!.getContacts();
+    if (contacts === null) {
+      await interaction.editReply({
+        content: "コンタクトリストの取得に失敗しました。しばらくしてから再試行してください。",
+      });
+      return;
+    }
 
     const pending = contacts.filter(
       (c) => c.friendStatus === "Requested",
@@ -311,6 +323,12 @@ export class DiscordBot {
 
     const userId = interaction.options.getString("user_id", true).trim();
     const contacts = await this.slashHandler!.getContacts();
+    if (contacts === null) {
+      await interaction.editReply({
+        content: "コンタクトリストの取得に失敗しました。しばらくしてから再試行してください。",
+      });
+      return;
+    }
 
     const contact = contacts.find((c) => c.id === userId);
     if (!contact) {

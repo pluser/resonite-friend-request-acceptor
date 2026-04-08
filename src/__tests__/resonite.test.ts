@@ -377,14 +377,15 @@ describe("ResoniteClient", () => {
       );
 
       const contacts = await client.getContacts();
+      expect(contacts).not.toBeNull();
       expect(contacts).toHaveLength(2);
-      expect(contacts[0]!.id).toBe("U-friend1");
-      expect(contacts[1]!.id).toBe("U-friend2");
+      expect(contacts![0]!.id).toBe("U-friend1");
+      expect(contacts![1]!.id).toBe("U-friend2");
 
       vi.unstubAllGlobals();
     });
 
-    it("should return empty array on fetch failure", async () => {
+    it("should return null on fetch failure", async () => {
       const client = new ResoniteClient({
         username: "testuser",
         password: "testpass",
@@ -404,12 +405,12 @@ describe("ResoniteClient", () => {
       );
 
       const contacts = await client.getContacts();
-      expect(contacts).toHaveLength(0);
+      expect(contacts).toBeNull();
 
       vi.unstubAllGlobals();
     });
 
-    it("should return empty array on network error", async () => {
+    it("should return null on network error", async () => {
       const client = new ResoniteClient({
         username: "testuser",
         password: "testpass",
@@ -425,19 +426,19 @@ describe("ResoniteClient", () => {
       );
 
       const contacts = await client.getContacts();
-      expect(contacts).toHaveLength(0);
+      expect(contacts).toBeNull();
 
       vi.unstubAllGlobals();
     });
 
-    it("should return empty array when not logged in", async () => {
+    it("should return null when not logged in", async () => {
       const client = new ResoniteClient({
         username: "testuser",
         password: "testpass",
       });
 
       const contacts = await client.getContacts();
-      expect(contacts).toHaveLength(0);
+      expect(contacts).toBeNull();
     });
   });
 });
