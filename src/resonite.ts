@@ -280,7 +280,27 @@ export class ResoniteClient extends EventEmitter {
       return null;
     }
 
-    return (await res.json()) as ResoniteContact[];
+    const contacts = (await res.json()) as ResoniteContact[];
+    console.log(
+      `[Resonite] Fetched ${contacts.length} contacts`,
+    );
+    if (contacts.length > 0) {
+      // Log the first contact's keys and friendStatus values for debugging
+      const statuses = new Map<string, number>();
+      for (const c of contacts) {
+        const status = c.friendStatus ?? "(undefined)";
+        statuses.set(status, (statuses.get(status) ?? 0) + 1);
+      }
+      const summary = [...statuses.entries()]
+        .map(([s, n]) => `${s}: ${n}`)
+        .join(", ");
+      console.log(`[Resonite] Contact friendStatus summary: ${summary}`);
+      // Log the first contact's raw keys for field-name verification
+      console.log(
+        `[Resonite] Sample contact keys: ${Object.keys(contacts[0]).join(", ")}`,
+      );
+    }
+    return contacts;
   }
 
   /**

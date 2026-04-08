@@ -218,7 +218,18 @@ export class DiscordBot {
     const friends = contacts.filter((c) => c.friendStatus === "Accepted");
 
     if (friends.length === 0) {
-      await interaction.editReply({ content: "フレンドはいません。" });
+      // Include debug info: total contacts and their friendStatus values
+      const statuses = new Map<string, number>();
+      for (const c of contacts) {
+        const status = c.friendStatus ?? "(undefined)";
+        statuses.set(status, (statuses.get(status) ?? 0) + 1);
+      }
+      const summary = [...statuses.entries()]
+        .map(([s, n]) => `${s}: ${n}`)
+        .join(", ");
+      await interaction.editReply({
+        content: `フレンドはいません。\n(デバッグ: 全コンタクト数=${contacts.length}, ステータス内訳: ${summary || "なし"})`,
+      });
       return;
     }
 
