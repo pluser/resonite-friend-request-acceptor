@@ -10,6 +10,7 @@ import {
   SlashCommandBuilder,
   REST,
   Routes,
+  MessageFlags,
   type Interaction,
   type ChatInputCommandInteraction,
 } from "discord.js";
@@ -176,7 +177,7 @@ export class DiscordBot {
     if (!this.slashHandler) {
       await interaction.reply({
         content: "スラッシュコマンドは現在利用できません。",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -197,7 +198,7 @@ export class DiscordBot {
       if (interaction.deferred) {
         await interaction.editReply({ content }).catch(() => {});
       } else {
-        await interaction.reply({ content, ephemeral: true }).catch(() => {});
+        await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => {});
       }
     }
   }
@@ -205,7 +206,7 @@ export class DiscordBot {
   private async handleFriendsCommand(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const contacts = await this.slashHandler!.getContacts();
     const friends = contacts.filter((c) => c.friendStatus === "Accepted");
@@ -248,7 +249,7 @@ export class DiscordBot {
   private async handleRequestsCommand(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const contacts = await this.slashHandler!.getContacts();
 
@@ -306,7 +307,7 @@ export class DiscordBot {
   private async handleAcceptCommand(
     interaction: ChatInputCommandInteraction,
   ): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const userId = interaction.options.getString("user_id", true).trim();
     const contacts = await this.slashHandler!.getContacts();
@@ -370,7 +371,7 @@ export class DiscordBot {
     if (!contact) {
       await interaction.reply({
         content: "このリクエストの情報が見つかりませんでした。Bot再起動前のリクエストの可能性があります。",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
