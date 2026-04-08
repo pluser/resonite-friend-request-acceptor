@@ -161,7 +161,7 @@ export class ResoniteClient extends EventEmitter {
       .configureLogging(signalR.LogLevel.Warning)
       .build();
 
-    // Register no-op handlers for all server-sent events to suppress
+    // Register no-op handlers for all known server-sent events to suppress
     // "No client method with the name '...' found." warnings.
     // See: https://wiki.resonite.com/API#Events
     const noopEvents = [
@@ -171,6 +171,8 @@ export class ResoniteClient extends EventEmitter {
       "ReceiveSessionUpdate",
       "RemoveSession",
       "ReceiveStatusUpdate",
+      // Undocumented event observed in production
+      "debug",
     ];
     for (const event of noopEvents) {
       this.connection.on(event, () => {});
