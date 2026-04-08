@@ -13,10 +13,12 @@
   "dependencies": {
     "@microsoft/signalr": "^8.0.0",
     "discord.js": "^14.16.0",
-    "dotenv": "^16.4.0"
+    "dotenv": "^16.4.0",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^4.1.3"
