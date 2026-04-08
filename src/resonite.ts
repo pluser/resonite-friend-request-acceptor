@@ -289,11 +289,16 @@ export class ResoniteClient extends EventEmitter {
     const contacts = (await res.json()) as ResoniteContact[];
     if (contacts.length > 0) {
       const friends = contacts.filter((c) => c.contactStatus === "Accepted" && c.isAccepted).length;
-      const pending = contacts.filter((c) => c.contactStatus === "Accepted" && !c.isAccepted).length;
+      const nonAccepted = contacts.filter((c) => !c.isAccepted);
       const ignored = contacts.filter((c) => c.contactStatus === "Ignored").length;
       console.log(
-        `[Resonite] Fetched ${contacts.length} contacts (friends=${friends}, pending=${pending}, ignored=${ignored})`,
+        `[Resonite] Fetched ${contacts.length} contacts (friends=${friends}, not-accepted=${nonAccepted.length}, ignored=${ignored})`,
       );
+      // Dump full data for non-accepted contacts to determine how to
+      // distinguish "incoming request" from "outgoing request"
+      for (const c of nonAccepted) {
+        console.log(`[Resonite] Non-accepted contact: ${JSON.stringify(c)}`);
+      }
     } else {
       console.log(`[Resonite] Fetched 0 contacts`);
     }
