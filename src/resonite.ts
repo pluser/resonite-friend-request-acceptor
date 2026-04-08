@@ -265,7 +265,9 @@ export class ResoniteClient extends EventEmitter {
         { headers: { Authorization: this.fullToken } },
       );
     } catch (err) {
-      console.error("[Resonite] Failed to fetch contacts:", err);
+      const cause = err instanceof Error ? (err as any).cause : undefined;
+      const code = cause?.code ?? (err instanceof Error ? err.message : String(err));
+      console.error(`[Resonite] Failed to fetch contacts: ${code}`);
       return [];
     }
 
