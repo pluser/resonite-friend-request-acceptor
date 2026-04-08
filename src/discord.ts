@@ -66,6 +66,10 @@ export class DiscordBot {
     console.log("[Discord] Bot stopped");
   }
 
+  isHealthy(): boolean {
+    return this.client.isReady() && this.channel !== null;
+  }
+
   /**
    * Send a friend request notification to the configured channel.
    * Includes Accept and Ignore buttons.

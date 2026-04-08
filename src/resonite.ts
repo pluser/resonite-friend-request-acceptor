@@ -337,4 +337,12 @@ export class ResoniteClient extends EventEmitter {
   getUserId(): string {
     return this.userId;
   }
+
+  isHealthy(): boolean {
+    return (
+      this.loggedIn &&
+      this.connection !== undefined &&
+      this.connection.state === signalR.HubConnectionState.Connected
+    );
+  }
 }

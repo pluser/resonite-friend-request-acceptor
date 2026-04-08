@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { ResoniteClient, type ResoniteContact } from "./resonite.js";
 import { DiscordBot } from "./discord.js";
+import { HealthServer } from "./health.js";
 
 // ── Config validation ───────────────────────────────────────────────────
 
@@ -22,6 +23,11 @@ const DISCORD_CHANNEL_ID = requireEnv("DISCORD_CHANNEL_ID");
 
 const POLL_INTERVAL_SECONDS = parseInt(
   process.env["POLL_INTERVAL_SECONDS"] || "60",
+  10,
+);
+
+const HEALTH_PORT = parseInt(
+  process.env["HEALTH_PORT"] || "8080",
   10,
 );
 
@@ -65,7 +71,13 @@ async function main(): Promise<void> {
   // 4. Start Discord bot
   await discord.start();
 
-  // 5. Listen for new friend requests from Resonite
+  // 5. Start health check server
+  const health = new HealthServer();
+  health.addCheck("resonite", () => resonite.isHealthy());
+  health.addCheck("discord", () => discord.isHealthy());
+  await health.start(HEALTH_PORT);
+
+  // 6. Listen for new friend requests from Resonite
   resonite.on("friendRequest", (contact: ResoniteContact) => {
     console.log(
       `[Main] New friend request from ${contact.contactUsername} (${contact.id})`,
@@ -76,7 +88,7 @@ async function main(): Promise<void> {
     void discord.notifyFriendRequest(contact);
   });
 
-  // 6. Start polling
+  // 7. Start polling
   console.log(
     `[Main] Polling for friend requests every ${POLL_INTERVAL_SECONDS}s...`,
   );
@@ -88,10 +100,11 @@ async function main(): Promise<void> {
     void resonite.pollFriendRequests();
   }, POLL_INTERVAL_SECONDS * 1000);
 
-  // 7. Graceful shutdown
+  // 8. Graceful shutdown
   const shutdown = async () => {
     console.log("\n[Main] Shutting down...");
     clearInterval(pollTimer);
+    await health.stop();
     await discord.stop();
     await resonite.logout();
     process.exit(0);
