@@ -161,6 +161,12 @@ export class ResoniteClient extends EventEmitter {
       .configureLogging(signalR.LogLevel.Warning)
       .build();
 
+    // Handle real-time contact updates (e.g. incoming friend requests)
+    this.connection.on(
+      "ContactAddedOrUpdated",
+      (contact: ResoniteContact) => this.handleContactUpdate(contact),
+    );
+
     // Register no-op handlers for all known server-sent events to suppress
     // "No client method with the name '...' found." warnings.
     // See: https://wiki.resonite.com/API#Events
@@ -219,6 +225,23 @@ export class ResoniteClient extends EventEmitter {
   // ── Contacts / Friend Requests ────────────────────────────────────
 
   /**
+   * Handle a contact update (from SignalR real-time event or polling).
+   * Emits `friendRequest` if the contact is a new incoming request.
+   */
+  private handleContactUpdate(contact: ResoniteContact): void {
+    if (
+      contact.friendStatus === "Requested" &&
+      !this.knownRequestIds.has(contact.id)
+    ) {
+      console.log(
+        `[Resonite] Real-time friend request from ${contact.contactUsername} (${contact.id})`,
+      );
+      this.knownRequestIds.add(contact.id);
+      this.emit("friendRequest", contact);
+    }
+  }
+
+  /**
    * Poll the contacts list and emit `friendRequest` for any new
    * incoming requests with `friendStatus === "Requested"`.
    */
@@ -240,13 +263,7 @@ export class ResoniteClient extends EventEmitter {
     const contacts: ResoniteContact[] = await res.json();
 
     for (const contact of contacts) {
-      if (
-        contact.friendStatus === "Requested" &&
-        !this.knownRequestIds.has(contact.id)
-      ) {
-        this.knownRequestIds.add(contact.id);
-        this.emit("friendRequest", contact);
-      }
+      this.handleContactUpdate(contact);
     }
   }
 
