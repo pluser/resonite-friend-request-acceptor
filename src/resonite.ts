@@ -248,10 +248,16 @@ export class ResoniteClient extends EventEmitter {
   async pollFriendRequests(): Promise<void> {
     if (!this.loggedIn) return;
 
-    const res = await fetch(
-      `${BASE_API_URL}/users/${this.userId}/contacts`,
-      { headers: { Authorization: this.fullToken } },
-    );
+    let res: Response;
+    try {
+      res = await fetch(
+        `${BASE_API_URL}/users/${this.userId}/contacts`,
+        { headers: { Authorization: this.fullToken } },
+      );
+    } catch (err) {
+      console.error("[Resonite] Failed to fetch contacts:", err);
+      return;
+    }
 
     if (!res.ok) {
       console.error(
