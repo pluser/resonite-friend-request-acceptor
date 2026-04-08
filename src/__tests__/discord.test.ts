@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DiscordBot } from "../discord.js";
+import { DiscordBot, type SlashCommandHandler } from "../discord.js";
 
 describe("DiscordBot", () => {
   it("should be instantiable with valid config", () => {
@@ -32,5 +32,20 @@ describe("DiscordBot", () => {
 
     bot.pendingRequests.delete("U-test");
     expect(bot.pendingRequests.has("U-test")).toBe(false);
+  });
+
+  it("should accept a slash command handler", () => {
+    const bot = new DiscordBot(
+      { token: "fake-token", channelId: "123456789" },
+      async () => true,
+    );
+
+    const handler: SlashCommandHandler = {
+      getContacts: async () => [],
+      acceptContact: async () => true,
+    };
+
+    // Should not throw
+    bot.setSlashCommandHandler(handler);
   });
 });

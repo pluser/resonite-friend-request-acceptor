@@ -64,20 +64,34 @@ async function main(): Promise<void> {
     },
   );
 
-  // 3. Login to Resonite
+  // 3. Register slash command handler
+  discord.setSlashCommandHandler({
+    getContacts: () => resonite.getContacts(),
+    acceptContact: async (contact) => {
+      try {
+        await resonite.acceptFriendRequest(contact);
+        return true;
+      } catch (err) {
+        console.error("[Main] Failed to accept friend request:", err);
+        return false;
+      }
+    },
+  });
+
+  // 4. Login to Resonite
   await resonite.login();
   await resonite.start();
 
-  // 4. Start Discord bot
+  // 5. Start Discord bot
   await discord.start();
 
-  // 5. Start health check server
+  // 6. Start health check server
   const health = new HealthServer();
   health.addCheck("resonite", () => resonite.isHealthy());
   health.addCheck("discord", () => discord.isHealthy());
   await health.start(HEALTH_PORT);
 
-  // 6. Listen for new friend requests from Resonite
+  // 7. Listen for new friend requests from Resonite
   resonite.on("friendRequest", (contact: ResoniteContact) => {
     console.log(
       `[Main] New friend request from ${contact.contactUsername} (${contact.id})`,
@@ -88,7 +102,7 @@ async function main(): Promise<void> {
     void discord.notifyFriendRequest(contact);
   });
 
-  // 7. Start polling
+  // 8. Start polling
   console.log(
     `[Main] Polling for friend requests every ${POLL_INTERVAL_SECONDS}s...`,
   );
@@ -100,7 +114,7 @@ async function main(): Promise<void> {
     void resonite.pollFriendRequests();
   }, POLL_INTERVAL_SECONDS * 1000);
 
-  // 8. Graceful shutdown
+  // 9. Graceful shutdown
   const shutdown = async () => {
     console.log("\n[Main] Shutting down...");
     clearInterval(pollTimer);

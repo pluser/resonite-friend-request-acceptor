@@ -5,11 +5,19 @@ Resonite に届くフレンドリクエストを Discord に転送し、Discord 
 ## 機能
 
 - Resonite API にログインし、SignalR 経由でオンライン状態を維持
-- 定期的にコンタクトリストをポーリングし、新しいフレンドリクエストを検出
+- SignalR のリアルタイムイベントで新しいフレンドリクエストを即座に検出（ポーリングによるフォールバック付き）
 - Discord の指定チャンネルにフレンドリクエスト通知を Embed + ボタン付きで送信
 - Discord 上の **Accept** ボタンでフレンドリクエストを承認
 - Discord 上の **Ignore** ボタンでフレンドリクエストを拒否
 - ボタン操作後は結果が Embed に反映され、ボタンは無効化される
+
+### スラッシュコマンド
+
+| コマンド | 説明 |
+|---|---|
+| `/friends` | Resonite のフレンド一覧を表示 |
+| `/requests` | 保留中・無視済みのフレンドリクエストを表示 |
+| `/accept user_id:<ID>` | 無視したフレンドリクエストを承認（例: `/accept user_id:U-someone`） |
 
 ## セットアップ
 
@@ -23,10 +31,11 @@ Resonite に届くフレンドリクエストを Discord に転送し、Discord 
 
 1. [Discord Developer Portal](https://discord.com/developers/applications) で新しい Application を作成
 2. Bot タブで Bot Token を取得
-3. OAuth2 > URL Generator で `bot` スコープを選択し、以下の権限を付与:
+3. OAuth2 > URL Generator で `bot` と `applications.commands` スコープを選択し、以下の権限を付与:
    - Send Messages
    - Embed Links
    - Read Message History
+   - Use Slash Commands
 4. 生成された URL でボットをサーバーに招待
 5. 通知を送りたいテキストチャンネルの ID を取得（チャンネルを右クリック > ID をコピー）
 
@@ -116,19 +125,22 @@ GitHub Actions で以下のパイプラインが自動実行されます:
 ┌─────────────────┐     ┌───────────────────┐     ┌─────────────────┐
 │   Resonite API  │◄────│   ResoniteClient  │────►│   DiscordBot    │
 │   (REST+SignalR)│     │  - login/auth     │     │  - notify embed │
-│                 │     │  - poll contacts  │     │  - Accept btn   │
-│                 │     │  - accept/ignore  │     │  - Ignore btn   │
+│                 │     │  - real-time event│     │  - Accept btn   │
+│                 │     │  - poll contacts  │     │  - Ignore btn   │
+│                 │     │  - accept/ignore  │     │  - /friends     │
+│                 │     │  - get contacts   │     │  - /requests    │
+│                 │     │                   │     │  - /accept      │
 └─────────────────┘     └───────────────────┘     └─────────────────┘
                               ▲                         │
                               │   accept/ignore         │
                               └─────────────────────────┘
-                                  button click
+                              button click / slash cmd
 ```
 
 1. `ResoniteClient` が Resonite API にログインし、SignalR で接続を維持
-2. 定期的に `GET /users/{userId}/contacts` をポーリングし、`friendStatus === "Requested"` のコンタクトを検出
+2. SignalR の `ContactAddedOrUpdated` イベントでリアルタイムにフレンドリクエストを検出（ポーリングによるフォールバック付き）
 3. 新しいリクエストを検出すると `DiscordBot` が Discord チャンネルに通知を送信
-4. ユーザーが Discord 上で Accept/Ignore ボタンをクリック
+4. ユーザーが Discord 上で Accept/Ignore ボタンをクリック、またはスラッシュコマンドで操作
 5. SignalR の `UpdateContact` で Resonite 側のフレンド状態を更新
 
 ## 参考

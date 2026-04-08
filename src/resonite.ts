@@ -246,7 +246,17 @@ export class ResoniteClient extends EventEmitter {
    * incoming requests with `friendStatus === "Requested"`.
    */
   async pollFriendRequests(): Promise<void> {
-    if (!this.loggedIn) return;
+    const contacts = await this.getContacts();
+    for (const contact of contacts) {
+      this.handleContactUpdate(contact);
+    }
+  }
+
+  /**
+   * Fetch the full contacts list from the REST API.
+   */
+  async getContacts(): Promise<ResoniteContact[]> {
+    if (!this.loggedIn) return [];
 
     let res: Response;
     try {
@@ -256,21 +266,17 @@ export class ResoniteClient extends EventEmitter {
       );
     } catch (err) {
       console.error("[Resonite] Failed to fetch contacts:", err);
-      return;
+      return [];
     }
 
     if (!res.ok) {
       console.error(
         `[Resonite] Failed to fetch contacts: ${res.status} ${res.statusText}`,
       );
-      return;
+      return [];
     }
 
-    const contacts: ResoniteContact[] = await res.json();
-
-    for (const contact of contacts) {
-      this.handleContactUpdate(contact);
-    }
+    return (await res.json()) as ResoniteContact[];
   }
 
   /**

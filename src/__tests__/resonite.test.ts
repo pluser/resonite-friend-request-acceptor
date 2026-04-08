@@ -337,4 +337,107 @@ describe("ResoniteClient", () => {
 
     vi.unstubAllGlobals();
   });
+
+  describe("getContacts", () => {
+    it("should return contacts from the API", async () => {
+      const client = new ResoniteClient({
+        username: "testuser",
+        password: "testpass",
+      });
+
+      (client as any).loggedIn = true;
+      (client as any).userId = "U-testuser";
+      (client as any).fullToken = "res U-testuser:faketoken";
+
+      const mockContacts: ResoniteContact[] = [
+        {
+          id: "U-friend1",
+          contactUsername: "Friend1",
+          ownerId: "U-testuser",
+          contactStatus: "Accepted",
+          friendStatus: "Accepted",
+          isAccepted: true,
+        },
+        {
+          id: "U-friend2",
+          contactUsername: "Friend2",
+          ownerId: "U-testuser",
+          contactStatus: "Ignored",
+          friendStatus: "Requested",
+          isAccepted: false,
+        },
+      ];
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockContacts),
+        }),
+      );
+
+      const contacts = await client.getContacts();
+      expect(contacts).toHaveLength(2);
+      expect(contacts[0]!.id).toBe("U-friend1");
+      expect(contacts[1]!.id).toBe("U-friend2");
+
+      vi.unstubAllGlobals();
+    });
+
+    it("should return empty array on fetch failure", async () => {
+      const client = new ResoniteClient({
+        username: "testuser",
+        password: "testpass",
+      });
+
+      (client as any).loggedIn = true;
+      (client as any).userId = "U-testuser";
+      (client as any).fullToken = "res U-testuser:faketoken";
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+        }),
+      );
+
+      const contacts = await client.getContacts();
+      expect(contacts).toHaveLength(0);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("should return empty array on network error", async () => {
+      const client = new ResoniteClient({
+        username: "testuser",
+        password: "testpass",
+      });
+
+      (client as any).loggedIn = true;
+      (client as any).userId = "U-testuser";
+      (client as any).fullToken = "res U-testuser:faketoken";
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockRejectedValue(new Error("getaddrinfo EAI_AGAIN")),
+      );
+
+      const contacts = await client.getContacts();
+      expect(contacts).toHaveLength(0);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("should return empty array when not logged in", async () => {
+      const client = new ResoniteClient({
+        username: "testuser",
+        password: "testpass",
+      });
+
+      const contacts = await client.getContacts();
+      expect(contacts).toHaveLength(0);
+    });
+  });
 });

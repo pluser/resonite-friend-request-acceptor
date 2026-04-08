@@ -7,7 +7,11 @@ import {
   ButtonStyle,
   TextChannel,
   ComponentType,
+  SlashCommandBuilder,
+  REST,
+  Routes,
   type Interaction,
+  type ChatInputCommandInteraction,
 } from "discord.js";
 import type { ResoniteContact } from "./resonite.js";
 
@@ -25,11 +29,20 @@ export type FriendRequestAction = (
   action: "accept" | "ignore",
 ) => Promise<boolean>;
 
+/**
+ * Callback to fetch contact data from the Resonite API.
+ */
+export type SlashCommandHandler = {
+  getContacts: () => Promise<ResoniteContact[]>;
+  acceptContact: (contact: ResoniteContact) => Promise<boolean>;
+};
+
 export class DiscordBot {
   private client: Client;
   private config: DiscordBotConfig;
   private onAction: FriendRequestAction;
   private channel: TextChannel | null = null;
+  private slashHandler: SlashCommandHandler | null = null;
 
   constructor(config: DiscordBotConfig, onAction: FriendRequestAction) {
     this.config = config;
@@ -39,13 +52,24 @@ export class DiscordBot {
     });
   }
 
+  /**
+   * Register the slash command handler providing access to Resonite data.
+   * Must be called before `start()`.
+   */
+  setSlashCommandHandler(handler: SlashCommandHandler): void {
+    this.slashHandler = handler;
+  }
+
   async start(): Promise<void> {
-    // Set up button interaction handler
+    // Set up interaction handler (buttons + slash commands)
     this.client.on("interactionCreate", (interaction) => {
       void this.handleInteraction(interaction);
     });
 
     await this.client.login(this.config.token);
+
+    // Register slash commands
+    await this.registerSlashCommands();
 
     // Resolve the target channel
     const ch = await this.client.channels.fetch(this.config.channelId);
@@ -115,6 +139,213 @@ export class DiscordBot {
     );
   }
 
+  // ── Slash commands ────────────────────────────────────────────────
+
+  private async registerSlashCommands(): Promise<void> {
+    if (!this.client.user) return;
+
+    const commands = [
+      new SlashCommandBuilder()
+        .setName("friends")
+        .setDescription("Resoniteのフレンド一覧を表示します"),
+      new SlashCommandBuilder()
+        .setName("requests")
+        .setDescription("保留中・無視済みのフレンドリクエストを表示します"),
+      new SlashCommandBuilder()
+        .setName("accept")
+        .setDescription("無視したフレンドリクエストを承認します")
+        .addStringOption((option) =>
+          option
+            .setName("user_id")
+            .setDescription("承認するユーザーID (例: U-someone)")
+            .setRequired(true),
+        ),
+    ];
+
+    const rest = new REST({ version: "10" }).setToken(this.config.token);
+    await rest.put(Routes.applicationCommands(this.client.user.id), {
+      body: commands.map((c) => c.toJSON()),
+    });
+
+    console.log("[Discord] Slash commands registered");
+  }
+
+  private async handleSlashCommand(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
+    if (!this.slashHandler) {
+      await interaction.reply({
+        content: "スラッシュコマンドは現在利用できません。",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const { commandName } = interaction;
+
+    try {
+      if (commandName === "friends") {
+        await this.handleFriendsCommand(interaction);
+      } else if (commandName === "requests") {
+        await this.handleRequestsCommand(interaction);
+      } else if (commandName === "accept") {
+        await this.handleAcceptCommand(interaction);
+      }
+    } catch (err) {
+      console.error(`[Discord] Slash command /${commandName} failed:`, err);
+      const content = "コマンドの実行中にエラーが発生しました。";
+      if (interaction.deferred) {
+        await interaction.editReply({ content }).catch(() => {});
+      } else {
+        await interaction.reply({ content, ephemeral: true }).catch(() => {});
+      }
+    }
+  }
+
+  private async handleFriendsCommand(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
+    await interaction.deferReply({ ephemeral: true });
+
+    const contacts = await this.slashHandler!.getContacts();
+    const friends = contacts.filter((c) => c.friendStatus === "Accepted");
+
+    if (friends.length === 0) {
+      await interaction.editReply({ content: "フレンドはいません。" });
+      return;
+    }
+
+    // Paginate into chunks to fit Discord embed limits
+    const PAGE_SIZE = 20;
+    const pages: string[] = [];
+    for (let i = 0; i < friends.length; i += PAGE_SIZE) {
+      const chunk = friends.slice(i, i + PAGE_SIZE);
+      pages.push(
+        chunk
+          .map(
+            (f, idx) => `**${i + idx + 1}.** ${f.contactUsername} (\`${f.id}\`)`,
+          )
+          .join("\n"),
+      );
+    }
+
+    const embeds = pages.map((page, idx) =>
+      new EmbedBuilder()
+        .setTitle(
+          pages.length > 1
+            ? `Resonite フレンド一覧 (${idx + 1}/${pages.length})`
+            : "Resonite フレンド一覧",
+        )
+        .setDescription(page)
+        .setColor(0x2ecc71)
+        .setFooter({ text: `合計: ${friends.length}人` }),
+    );
+
+    // Discord allows up to 10 embeds per message
+    await interaction.editReply({ embeds: embeds.slice(0, 10) });
+  }
+
+  private async handleRequestsCommand(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
+    await interaction.deferReply({ ephemeral: true });
+
+    const contacts = await this.slashHandler!.getContacts();
+
+    const pending = contacts.filter(
+      (c) => c.friendStatus === "Requested",
+    );
+    const ignored = contacts.filter(
+      (c) => c.contactStatus === "Ignored" && c.friendStatus !== "Accepted",
+    );
+
+    const embeds: EmbedBuilder[] = [];
+
+    if (pending.length > 0) {
+      const desc = pending
+        .map(
+          (c, i) => `**${i + 1}.** ${c.contactUsername} (\`${c.id}\`)`,
+        )
+        .join("\n");
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle("保留中のフレンドリクエスト")
+          .setDescription(desc)
+          .setColor(0x3498db)
+          .setFooter({ text: `${pending.length}件` }),
+      );
+    }
+
+    if (ignored.length > 0) {
+      const desc = ignored
+        .map(
+          (c, i) => `**${i + 1}.** ${c.contactUsername} (\`${c.id}\`)`,
+        )
+        .join("\n");
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle("無視済みのフレンドリクエスト")
+          .setDescription(
+            desc + "\n\n`/accept user_id:<ID>` で承認できます。",
+          )
+          .setColor(0xe74c3c)
+          .setFooter({ text: `${ignored.length}件` }),
+      );
+    }
+
+    if (embeds.length === 0) {
+      await interaction.editReply({
+        content: "保留中・無視済みのフレンドリクエストはありません。",
+      });
+      return;
+    }
+
+    await interaction.editReply({ embeds });
+  }
+
+  private async handleAcceptCommand(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<void> {
+    await interaction.deferReply({ ephemeral: true });
+
+    const userId = interaction.options.getString("user_id", true).trim();
+    const contacts = await this.slashHandler!.getContacts();
+
+    const contact = contacts.find((c) => c.id === userId);
+    if (!contact) {
+      await interaction.editReply({
+        content: `ユーザー \`${userId}\` はコンタクトリストに見つかりませんでした。`,
+      });
+      return;
+    }
+
+    if (contact.friendStatus === "Accepted") {
+      await interaction.editReply({
+        content: `**${contact.contactUsername}** は既にフレンドです。`,
+      });
+      return;
+    }
+
+    const success = await this.slashHandler!.acceptContact(contact);
+
+    if (success) {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("フレンドリクエスト承認")
+            .setDescription(
+              `**${contact.contactUsername}** (\`${contact.id}\`) のフレンドリクエストを承認しました。`,
+            )
+            .setColor(0x2ecc71),
+        ],
+      });
+    } else {
+      await interaction.editReply({
+        content: `**${contact.contactUsername}** の承認に失敗しました。`,
+      });
+    }
+  }
+
   // ── Interaction handler ──────────────────────────────────────────
 
   /**
@@ -124,6 +355,11 @@ export class DiscordBot {
   pendingRequests = new Map<string, ResoniteContact>();
 
   private async handleInteraction(interaction: Interaction): Promise<void> {
+    if (interaction.isChatInputCommand()) {
+      await this.handleSlashCommand(interaction);
+      return;
+    }
+
     if (!interaction.isButton()) return;
 
     const [action, contactId] = interaction.customId.split(":");
