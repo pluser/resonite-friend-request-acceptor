@@ -1,5 +1,7 @@
 # Resonite Friend Request Acceptor
 
+[English README](./README.en.md)
+
 Resonite に届くフレンドリクエストを Discord に転送し、Discord 上のボタンから Accept / Ignore できるボットです。
 
 ## 機能
