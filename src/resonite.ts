@@ -165,7 +165,10 @@ export class ResoniteClient extends EventEmitter {
     // Handle real-time contact updates (e.g. incoming friend requests)
     this.connection.on(
       "ContactAddedOrUpdated",
-      (contact: ResoniteContact) => this.handleContactUpdate(contact),
+      (contact: ResoniteContact) => {
+        console.log(`[Resonite] ContactAddedOrUpdated: ${JSON.stringify(contact)}`);
+        this.handleContactUpdate(contact);
+      },
     );
 
     // Register no-op handlers for all known server-sent events to suppress
@@ -229,14 +232,17 @@ export class ResoniteClient extends EventEmitter {
    * Handle a contact update (from SignalR real-time event or polling).
    * Emits `friendRequest` if the contact is a new incoming request.
    *
-   * A pending friend request means the other user added us
-   * (contactStatus === "Accepted") but we haven't accepted yet
-   * (isAccepted === false).
+   * Contact status semantics (contactStatus field):
+   * - "Accepted" + isAccepted true  → mutual friend
+   * - "Accepted" + isAccepted false → outgoing request (we sent it)
+   * - "Requested" + isAccepted true → incoming request (they sent it)
+   * - "Ignored"                     → we ignored this contact
+   *
+   * We only want to notify on incoming requests from others.
    */
   private handleContactUpdate(contact: ResoniteContact): void {
     if (
-      contact.contactStatus === "Accepted" &&
-      !contact.isAccepted &&
+      contact.contactStatus === "Requested" &&
       !this.knownRequestIds.has(contact.id)
     ) {
       console.log(
@@ -249,7 +255,7 @@ export class ResoniteClient extends EventEmitter {
 
   /**
    * Poll the contacts list and emit `friendRequest` for any new
-   * incoming requests (contactStatus === "Accepted" && isAccepted === false).
+   * incoming requests (contactStatus === "Requested").
    */
   async pollFriendRequests(): Promise<void> {
     const contacts = await this.getContacts();
@@ -289,16 +295,12 @@ export class ResoniteClient extends EventEmitter {
     const contacts = (await res.json()) as ResoniteContact[];
     if (contacts.length > 0) {
       const friends = contacts.filter((c) => c.contactStatus === "Accepted" && c.isAccepted).length;
-      const nonAccepted = contacts.filter((c) => !c.isAccepted);
+      const incoming = contacts.filter((c) => c.contactStatus === "Requested").length;
+      const outgoing = contacts.filter((c) => c.contactStatus === "Accepted" && !c.isAccepted).length;
       const ignored = contacts.filter((c) => c.contactStatus === "Ignored").length;
       console.log(
-        `[Resonite] Fetched ${contacts.length} contacts (friends=${friends}, not-accepted=${nonAccepted.length}, ignored=${ignored})`,
+        `[Resonite] Fetched ${contacts.length} contacts (friends=${friends}, incoming=${incoming}, outgoing=${outgoing}, ignored=${ignored})`,
       );
-      // Dump full data for non-accepted contacts to determine how to
-      // distinguish "incoming request" from "outgoing request"
-      for (const c of nonAccepted) {
-        console.log(`[Resonite] Non-accepted contact: ${JSON.stringify(c)}`);
-      }
     } else {
       console.log(`[Resonite] Fetched 0 contacts`);
     }
@@ -311,7 +313,7 @@ export class ResoniteClient extends EventEmitter {
   async acceptFriendRequest(contact: ResoniteContact): Promise<void> {
     if (!this.connection) throw new Error("SignalR not connected");
 
-    const updatedContact = { ...contact, contactStatus: "Accepted", isAccepted: true };
+    const updatedContact = { ...contact, contactStatus: "Accepted" };
     await this.connection.send("UpdateContact", updatedContact);
     console.log(`[Resonite] Accepted friend request from ${contact.contactUsername} (${contact.id})`);
   }

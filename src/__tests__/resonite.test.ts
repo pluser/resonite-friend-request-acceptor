@@ -27,7 +27,7 @@ describe("ResoniteClient", () => {
     await expect(client.start()).rejects.toThrow("Not logged in");
   });
 
-  it("should emit friendRequest events for new requested contacts", async () => {
+  it("should emit friendRequest events for new incoming requests", async () => {
     const client = new ResoniteClient({
       username: "testuser",
       password: "testpass",
@@ -40,15 +40,22 @@ describe("ResoniteClient", () => {
 
     const mockContacts: ResoniteContact[] = [
       {
-        id: "U-friend1",
-        contactUsername: "Friend1",
+        id: "U-incoming",
+        contactUsername: "IncomingFriend",
+        ownerId: "U-testuser",
+        contactStatus: "Requested",
+        isAccepted: false,
+      },
+      {
+        id: "U-outgoing",
+        contactUsername: "OutgoingFriend",
         ownerId: "U-testuser",
         contactStatus: "Accepted",
         isAccepted: false,
       },
       {
-        id: "U-friend2",
-        contactUsername: "Friend2",
+        id: "U-mutual",
+        contactUsername: "MutualFriend",
         ownerId: "U-testuser",
         contactStatus: "Accepted",
         isAccepted: true,
@@ -69,9 +76,50 @@ describe("ResoniteClient", () => {
 
     await client.pollFriendRequests();
 
+    // Only the incoming request should be emitted, not the outgoing one
     expect(emitted).toHaveLength(1);
-    expect(emitted[0]!.id).toBe("U-friend1");
-    expect(emitted[0]!.contactUsername).toBe("Friend1");
+    expect(emitted[0]!.id).toBe("U-incoming");
+    expect(emitted[0]!.contactUsername).toBe("IncomingFriend");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("should not emit for outgoing requests (contactStatus Accepted, isAccepted false)", async () => {
+    const client = new ResoniteClient({
+      username: "testuser",
+      password: "testpass",
+    });
+
+    (client as any).loggedIn = true;
+    (client as any).userId = "U-testuser";
+    (client as any).fullToken = "res U-testuser:faketoken";
+
+    const mockContacts: ResoniteContact[] = [
+      {
+        id: "U-outgoing",
+        contactUsername: "OutgoingFriend",
+        ownerId: "U-testuser",
+        contactStatus: "Accepted",
+        isAccepted: false,
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockContacts),
+      }),
+    );
+
+    const emitted: ResoniteContact[] = [];
+    client.on("friendRequest", (contact: ResoniteContact) => {
+      emitted.push(contact);
+    });
+
+    await client.pollFriendRequests();
+
+    expect(emitted).toHaveLength(0);
 
     vi.unstubAllGlobals();
   });
@@ -91,7 +139,7 @@ describe("ResoniteClient", () => {
         id: "U-friend1",
         contactUsername: "Friend1",
         ownerId: "U-testuser",
-        contactStatus: "Accepted",
+        contactStatus: "Requested",
         isAccepted: false,
       },
     ];
@@ -200,19 +248,19 @@ describe("ResoniteClient", () => {
 
       // Since we can't easily mock the constructor, test the handler
       // behavior by directly invoking the handler function.
-      // The handler checks: contactStatus === "Accepted" && !isAccepted && !knownRequestIds.has(id)
+      // The handler checks: !isAccepted && contactStatus !== "Accepted" && contactStatus !== "Ignored"
 
       const emitted: ResoniteContact[] = [];
       client.on("friendRequest", (contact: ResoniteContact) => {
         emitted.push(contact);
       });
 
-      // Simulate what the ContactAddedOrUpdated handler does
+      // Simulate an incoming friend request (contactStatus is not "Accepted")
       const incomingContact: ResoniteContact = {
         id: "U-realtime1",
         contactUsername: "RealtimeFriend",
         ownerId: "U-testuser",
-        contactStatus: "Accepted",
+        contactStatus: "Requested",
         isAccepted: false,
       };
 
@@ -224,7 +272,7 @@ describe("ResoniteClient", () => {
       expect(emitted[0]!.contactUsername).toBe("RealtimeFriend");
     });
 
-    it("should not emit friendRequest for non-Requested contacts via real-time event", async () => {
+    it("should not emit friendRequest for already-accepted contacts via real-time event", async () => {
       const client = createLoggedInClient();
 
       const emitted: ResoniteContact[] = [];
@@ -245,6 +293,28 @@ describe("ResoniteClient", () => {
       expect(emitted).toHaveLength(0);
     });
 
+    it("should not emit friendRequest for outgoing requests via real-time event", async () => {
+      const client = createLoggedInClient();
+
+      const emitted: ResoniteContact[] = [];
+      client.on("friendRequest", (contact: ResoniteContact) => {
+        emitted.push(contact);
+      });
+
+      // Outgoing request: we sent it (contactStatus Accepted) but they haven't accepted
+      const outgoingContact: ResoniteContact = {
+        id: "U-outgoing1",
+        contactUsername: "OutgoingFriend",
+        ownerId: "U-testuser",
+        contactStatus: "Accepted",
+        isAccepted: false,
+      };
+
+      (client as any).handleContactUpdate(outgoingContact);
+
+      expect(emitted).toHaveLength(0);
+    });
+
     it("should not double-emit for the same contact via real-time and polling", async () => {
       const client = createLoggedInClient();
 
@@ -257,7 +327,7 @@ describe("ResoniteClient", () => {
         id: "U-dedup1",
         contactUsername: "DedupFriend",
         ownerId: "U-testuser",
-        contactStatus: "Accepted",
+        contactStatus: "Requested",
         isAccepted: false,
       };
 
@@ -291,7 +361,7 @@ describe("ResoniteClient", () => {
         id: "U-dedup2",
         contactUsername: "DedupFriend2",
         ownerId: "U-testuser",
-        contactStatus: "Accepted",
+        contactStatus: "Requested",
         isAccepted: false,
       };
 

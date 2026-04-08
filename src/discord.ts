@@ -287,7 +287,12 @@ export class DiscordBot {
       return;
     }
 
+    // Incoming requests: the other user sent us a request, we haven't acted yet
     const pending = contacts.filter(
+      (c) => c.contactStatus === "Requested",
+    );
+    // Outgoing requests: we sent a request, they haven't accepted yet
+    const outgoing = contacts.filter(
       (c) => c.contactStatus === "Accepted" && !c.isAccepted,
     );
     const ignored = contacts.filter(
@@ -308,6 +313,21 @@ export class DiscordBot {
           .setDescription(desc)
           .setColor(0x3498db)
           .setFooter({ text: `${pending.length}件` }),
+      );
+    }
+
+    if (outgoing.length > 0) {
+      const desc = outgoing
+        .map(
+          (c, i) => `**${i + 1}.** ${c.contactUsername} (\`${c.id}\`)`,
+        )
+        .join("\n");
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle("送信済みのフレンドリクエスト")
+          .setDescription(desc)
+          .setColor(0xf39c12)
+          .setFooter({ text: `${outgoing.length}件` }),
       );
     }
 
