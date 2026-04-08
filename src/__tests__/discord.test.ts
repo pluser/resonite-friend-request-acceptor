@@ -21,8 +21,7 @@ describe("DiscordBot", () => {
       id: "U-test",
       contactUsername: "TestUser",
       ownerId: "U-owner",
-      contactStatus: "Requested",
-      friendStatus: "Requested",
+      contactStatus: "Accepted",
       isAccepted: false,
     };
 

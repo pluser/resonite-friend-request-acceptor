@@ -43,8 +43,7 @@ describe("ResoniteClient", () => {
         id: "U-friend1",
         contactUsername: "Friend1",
         ownerId: "U-testuser",
-        contactStatus: "Requested",
-        friendStatus: "Requested",
+        contactStatus: "Accepted",
         isAccepted: false,
       },
       {
@@ -52,7 +51,6 @@ describe("ResoniteClient", () => {
         contactUsername: "Friend2",
         ownerId: "U-testuser",
         contactStatus: "Accepted",
-        friendStatus: "Accepted",
         isAccepted: true,
       },
     ];
@@ -93,8 +91,7 @@ describe("ResoniteClient", () => {
         id: "U-friend1",
         contactUsername: "Friend1",
         ownerId: "U-testuser",
-        contactStatus: "Requested",
-        friendStatus: "Requested",
+        contactStatus: "Accepted",
         isAccepted: false,
       },
     ];
@@ -188,7 +185,7 @@ describe("ResoniteClient", () => {
       vi.restoreAllMocks();
     });
 
-    it("should emit friendRequest on real-time ContactAddedOrUpdated with friendStatus Requested", async () => {
+    it("should emit friendRequest on real-time ContactAddedOrUpdated with pending request", async () => {
       const client = createLoggedInClient();
       const conn = createMockConnection();
 
@@ -203,7 +200,7 @@ describe("ResoniteClient", () => {
 
       // Since we can't easily mock the constructor, test the handler
       // behavior by directly invoking the handler function.
-      // The handler checks: friendStatus === "Requested" && !knownRequestIds.has(id)
+      // The handler checks: contactStatus === "Accepted" && !isAccepted && !knownRequestIds.has(id)
 
       const emitted: ResoniteContact[] = [];
       client.on("friendRequest", (contact: ResoniteContact) => {
@@ -215,8 +212,7 @@ describe("ResoniteClient", () => {
         id: "U-realtime1",
         contactUsername: "RealtimeFriend",
         ownerId: "U-testuser",
-        contactStatus: "Requested",
-        friendStatus: "Requested",
+        contactStatus: "Accepted",
         isAccepted: false,
       };
 
@@ -241,7 +237,6 @@ describe("ResoniteClient", () => {
         contactUsername: "AcceptedFriend",
         ownerId: "U-testuser",
         contactStatus: "Accepted",
-        friendStatus: "Accepted",
         isAccepted: true,
       };
 
@@ -262,8 +257,7 @@ describe("ResoniteClient", () => {
         id: "U-dedup1",
         contactUsername: "DedupFriend",
         ownerId: "U-testuser",
-        contactStatus: "Requested",
-        friendStatus: "Requested",
+        contactStatus: "Accepted",
         isAccepted: false,
       };
 
@@ -297,8 +291,7 @@ describe("ResoniteClient", () => {
         id: "U-dedup2",
         contactUsername: "DedupFriend2",
         ownerId: "U-testuser",
-        contactStatus: "Requested",
-        friendStatus: "Requested",
+        contactStatus: "Accepted",
         isAccepted: false,
       };
 
@@ -355,7 +348,6 @@ describe("ResoniteClient", () => {
           contactUsername: "Friend1",
           ownerId: "U-testuser",
           contactStatus: "Accepted",
-          friendStatus: "Accepted",
           isAccepted: true,
         },
         {
@@ -363,7 +355,6 @@ describe("ResoniteClient", () => {
           contactUsername: "Friend2",
           ownerId: "U-testuser",
           contactStatus: "Ignored",
-          friendStatus: "Requested",
           isAccepted: false,
         },
       ];

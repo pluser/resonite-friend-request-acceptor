@@ -215,21 +215,12 @@ export class DiscordBot {
       });
       return;
     }
-    const friends = contacts.filter((c) => c.friendStatus === "Accepted");
+    const friends = contacts.filter(
+      (c) => c.contactStatus === "Accepted" && c.isAccepted,
+    );
 
     if (friends.length === 0) {
-      // Include debug info: total contacts and their friendStatus values
-      const statuses = new Map<string, number>();
-      for (const c of contacts) {
-        const status = c.friendStatus ?? "(undefined)";
-        statuses.set(status, (statuses.get(status) ?? 0) + 1);
-      }
-      const summary = [...statuses.entries()]
-        .map(([s, n]) => `${s}: ${n}`)
-        .join(", ");
-      await interaction.editReply({
-        content: `フレンドはいません。\n(デバッグ: 全コンタクト数=${contacts.length}, ステータス内訳: ${summary || "なし"})`,
-      });
+      await interaction.editReply({ content: "フレンドはいません。" });
       return;
     }
 
@@ -277,10 +268,10 @@ export class DiscordBot {
     }
 
     const pending = contacts.filter(
-      (c) => c.friendStatus === "Requested",
+      (c) => c.contactStatus === "Accepted" && !c.isAccepted,
     );
     const ignored = contacts.filter(
-      (c) => c.contactStatus === "Ignored" && c.friendStatus !== "Accepted",
+      (c) => c.contactStatus === "Ignored",
     );
 
     const embeds: EmbedBuilder[] = [];
@@ -349,7 +340,7 @@ export class DiscordBot {
       return;
     }
 
-    if (contact.friendStatus === "Accepted") {
+    if (contact.contactStatus === "Accepted" && contact.isAccepted) {
       await interaction.editReply({
         content: `**${contact.contactUsername}** は既にフレンドです。`,
       });

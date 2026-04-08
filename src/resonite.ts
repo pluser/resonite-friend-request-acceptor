@@ -13,12 +13,13 @@ export interface ResoniteContact {
   contactUsername: string;
   ownerId: string;
   contactStatus: string;
-  friendStatus: string;
   isAccepted: boolean;
   profile?: {
     iconUrl?: string;
   };
   latestMessageTime?: string;
+  isMigrated?: boolean;
+  isCounterpartMigrated?: boolean;
   [key: string]: unknown;
 }
 
@@ -227,14 +228,19 @@ export class ResoniteClient extends EventEmitter {
   /**
    * Handle a contact update (from SignalR real-time event or polling).
    * Emits `friendRequest` if the contact is a new incoming request.
+   *
+   * A pending friend request means the other user added us
+   * (contactStatus === "Accepted") but we haven't accepted yet
+   * (isAccepted === false).
    */
   private handleContactUpdate(contact: ResoniteContact): void {
     if (
-      contact.friendStatus === "Requested" &&
+      contact.contactStatus === "Accepted" &&
+      !contact.isAccepted &&
       !this.knownRequestIds.has(contact.id)
     ) {
       console.log(
-        `[Resonite] Real-time friend request from ${contact.contactUsername} (${contact.id})`,
+        `[Resonite] Friend request from ${contact.contactUsername} (${contact.id})`,
       );
       this.knownRequestIds.add(contact.id);
       this.emit("friendRequest", contact);
@@ -243,7 +249,7 @@ export class ResoniteClient extends EventEmitter {
 
   /**
    * Poll the contacts list and emit `friendRequest` for any new
-   * incoming requests with `friendStatus === "Requested"`.
+   * incoming requests (contactStatus === "Accepted" && isAccepted === false).
    */
   async pollFriendRequests(): Promise<void> {
     const contacts = await this.getContacts();
@@ -281,24 +287,15 @@ export class ResoniteClient extends EventEmitter {
     }
 
     const contacts = (await res.json()) as ResoniteContact[];
-    console.log(
-      `[Resonite] Fetched ${contacts.length} contacts`,
-    );
     if (contacts.length > 0) {
-      // Log the first contact's keys and friendStatus values for debugging
-      const statuses = new Map<string, number>();
-      for (const c of contacts) {
-        const status = c.friendStatus ?? "(undefined)";
-        statuses.set(status, (statuses.get(status) ?? 0) + 1);
-      }
-      const summary = [...statuses.entries()]
-        .map(([s, n]) => `${s}: ${n}`)
-        .join(", ");
-      console.log(`[Resonite] Contact friendStatus summary: ${summary}`);
-      // Log the first contact's raw keys for field-name verification
+      const friends = contacts.filter((c) => c.contactStatus === "Accepted" && c.isAccepted).length;
+      const pending = contacts.filter((c) => c.contactStatus === "Accepted" && !c.isAccepted).length;
+      const ignored = contacts.filter((c) => c.contactStatus === "Ignored").length;
       console.log(
-        `[Resonite] Sample contact keys: ${Object.keys(contacts[0]).join(", ")}`,
+        `[Resonite] Fetched ${contacts.length} contacts (friends=${friends}, pending=${pending}, ignored=${ignored})`,
       );
+    } else {
+      console.log(`[Resonite] Fetched 0 contacts`);
     }
     return contacts;
   }
@@ -309,7 +306,7 @@ export class ResoniteClient extends EventEmitter {
   async acceptFriendRequest(contact: ResoniteContact): Promise<void> {
     if (!this.connection) throw new Error("SignalR not connected");
 
-    const updatedContact = { ...contact, friendStatus: "Accepted" };
+    const updatedContact = { ...contact, contactStatus: "Accepted", isAccepted: true };
     await this.connection.send("UpdateContact", updatedContact);
     console.log(`[Resonite] Accepted friend request from ${contact.contactUsername} (${contact.id})`);
   }
