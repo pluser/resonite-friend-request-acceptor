@@ -16,6 +16,23 @@ import {
 } from "discord.js";
 import type { ResoniteContact } from "./resonite.js";
 
+/**
+ * Convert a Resonite asset URL (resdb:///hash.ext) to an HTTPS URL
+ * that Discord can display. Returns `null` for unsupported schemes.
+ */
+function resolveResoniteAssetUrl(url: string): string | null {
+  if (url.startsWith("https://") || url.startsWith("http://")) {
+    return url;
+  }
+  // resdb:///18583a84ec40029513636535cf1f4b6b603094e81db7c3f677518b34674c34e7.webp
+  //   → https://assets.resonite.com/18583a84ec40029513636535cf1f4b6b603094e81db7c3f677518b34674c34e7
+  const match = url.match(/^resdb:\/\/\/([a-f0-9]+)\.\w+$/i);
+  if (match) {
+    return `https://assets.resonite.com/${match[1]}`;
+  }
+  return null;
+}
+
 export interface DiscordBotConfig {
   token: string;
   channelId: string;
@@ -114,7 +131,10 @@ export class DiscordBot {
       .setTimestamp();
 
     if (contact.profile?.iconUrl) {
-      embed.setThumbnail(contact.profile.iconUrl);
+      const thumbnailUrl = resolveResoniteAssetUrl(contact.profile.iconUrl);
+      if (thumbnailUrl) {
+        embed.setThumbnail(thumbnailUrl);
+      }
     }
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
